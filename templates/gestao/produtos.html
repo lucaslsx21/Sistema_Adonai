@@ -1,0 +1,66 @@
+{% extends 'base.html' %}
+
+{% block content %}
+
+<div class="d-flex justify-content-between align-items-center mb-4">
+    <h2>Produtos</h2>
+
+    <a href="{% url 'criar_produto' %}" class="btn btn-primary">
+        Novo Produto
+    </a>
+</div>
+
+<div class="mb-3">
+    <a href="{% url 'exportar_excel' 'produtos' %}" class="btn btn-success btn-sm">Excel</a>
+    <a href="{% url 'exportar_word' 'produtos' %}" class="btn btn-info btn-sm">Word</a>
+    <a href="{% url 'exportar_pdf' 'produtos' %}" class="btn btn-danger btn-sm">PDF</a>
+</div>
+
+<form method="get" class="mb-3">
+    <input type="text" name="busca" class="form-control" placeholder="Pesquisar produto...">
+</form>
+
+<div class="card">
+    <div class="card-body">
+
+        <table class="table table-hover">
+            <thead>
+                <tr>
+                    <th>Produto</th>
+                    <th>Categoria</th>
+                    <th>Unidade</th>
+                    <th>Estoque mínimo</th>
+                    <th>Ações</th>
+                </tr>
+            </thead>
+
+            <tbody>
+                {% for item in dados %}
+                <tr>
+                    <td>{{ item.nome }}</td>
+                    <td>{{ item.categoria }}</td>
+                    <td>{{ item.get_unidade_display }}</td>
+                    <td>{{ item.estoque_minimo }}</td>
+                    <td>
+                        <a href="{% url 'editar_produto' item.id %}" class="btn btn-warning btn-sm">
+                            Editar
+                        </a>
+
+                        <a href="{% url 'excluir_produto' item.id %}" class="btn btn-danger btn-sm"
+                            onclick="return confirm('Deseja realmente excluir?')">
+                            Excluir
+                        </a>
+                    </td>
+                </tr>
+                {% empty %}
+                <tr>
+                    <td colspan="5">Nenhum registro encontrado.</td>
+                </tr>
+                {% endfor %}
+            </tbody>
+        </table>
+
+    </div>
+</div>
+
+{% endblock %}

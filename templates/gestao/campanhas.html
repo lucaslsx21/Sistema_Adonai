@@ -1,0 +1,72 @@
+{% extends 'base.html' %}
+
+{% block content %}
+
+<div class="d-flex justify-content-between align-items-center mb-4">
+    <h2>Campanhas</h2>
+
+    <a href="{% url 'criar_campanha' %}" class="btn btn-primary">
+        Nova Campanha
+    </a>
+</div>
+
+<div class="mb-3">
+    <a href="{% url 'exportar_excel' 'campanhas' %}" class="btn btn-success btn-sm">Excel</a>
+    <a href="{% url 'exportar_word' 'campanhas' %}" class="btn btn-info btn-sm">Word</a>
+    <a href="{% url 'exportar_pdf' 'campanhas' %}" class="btn btn-danger btn-sm">PDF</a>
+</div>
+
+<form method="get" class="mb-3">
+    <input type="text" name="busca" class="form-control" placeholder="Pesquisar campanha...">
+</form>
+
+<div class="card">
+    <div class="card-body">
+
+        <table class="table table-hover">
+            <thead>
+                <tr>
+                    <th>Campanha</th>
+                    <th>Início</th>
+                    <th>Fim</th>
+                    <th>Ativa</th>
+                    <th>Ações</th>
+                </tr>
+            </thead>
+
+            <tbody>
+                {% for item in dados %}
+                <tr>
+                    <td>{{ item.nome }}</td>
+                    <td>{{ item.data_inicio }}</td>
+                    <td>{{ item.data_fim }}</td>
+                    <td>
+                        {% if item.ativa %}
+                        <span class="badge bg-success">Sim</span>
+                        {% else %}
+                        <span class="badge bg-danger">Não</span>
+                        {% endif %}
+                    </td>
+                    <td>
+                        <a href="{% url 'editar_campanha' item.id %}" class="btn btn-warning btn-sm">
+                            Editar
+                        </a>
+
+                        <a href="{% url 'excluir_campanha' item.id %}" class="btn btn-danger btn-sm"
+                            onclick="return confirm('Deseja realmente excluir?')">
+                            Excluir
+                        </a>
+                    </td>
+                </tr>
+                {% empty %}
+                <tr>
+                    <td colspan="5">Nenhum registro encontrado.</td>
+                </tr>
+                {% endfor %}
+            </tbody>
+        </table>
+
+    </div>
+</div>
+
+{% endblock %}

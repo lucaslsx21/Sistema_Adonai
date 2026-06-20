@@ -1,0 +1,129 @@
+{% extends 'base.html' %}
+
+{% block content %}
+
+<h2 class="mb-4">Central de Relatórios</h2>
+
+<div class="card shadow-sm">
+    <div class="card-header">
+        Filtros Avançados
+    </div>
+
+    <div class="card-body">
+
+        <form method="get">
+
+            <div class="row g-3">
+
+                <div class="col-md-3">
+                    <label>Data inicial</label>
+                    <input type="date" name="data_inicio" class="form-control">
+                </div>
+
+                <div class="col-md-3">
+                    <label>Data final</label>
+                    <input type="date" name="data_fim" class="form-control">
+                </div>
+
+                <div class="col-md-3">
+                    <label>Doador</label>
+                    <select name="doador" class="form-control">
+                        <option value="">Todos</option>
+                        {% for doador in doadores %}
+                        <option value="{{ doador.id }}">{{ doador.nome }}</option>
+                        {% endfor %}
+                    </select>
+                </div>
+
+                <div class="col-md-3">
+                    <label>Campanha</label>
+                    <select name="campanha" class="form-control">
+                        <option value="">Todas</option>
+                        {% for campanha in campanhas %}
+                        <option value="{{ campanha.id }}">{{ campanha.nome }}</option>
+                        {% endfor %}
+                    </select>
+                </div>
+
+                <div class="col-md-3">
+                    <label>Produto</label>
+                    <select name="produto" class="form-control">
+                        <option value="">Todos</option>
+                        {% for produto in produtos %}
+                        <option value="{{ produto.id }}">{{ produto.nome }}</option>
+                        {% endfor %}
+                    </select>
+                </div>
+
+            </div>
+
+            <hr>
+
+            <h5>Exportar relatórios</h5>
+
+            <div class="row g-3 mt-2">
+
+                <div class="col-md-4">
+                    <div class="card border">
+                        <div class="card-body">
+                            <h6>Doações</h6>
+
+                            <a onclick="exportarRelatorio('doacoes', 'excel')" class="btn btn-success btn-sm">Excel</a>
+                            <a onclick="exportarRelatorio('doacoes', 'word')" class="btn btn-info btn-sm">Word</a>
+                            <a onclick="exportarRelatorio('doacoes', 'pdf')" class="btn btn-danger btn-sm">PDF</a>
+                        </div>
+                    </div>
+                </div>
+
+                <div class="col-md-4">
+                    <div class="card border">
+                        <div class="card-body">
+                            <h6>Estoque</h6>
+
+                            <a onclick="exportarRelatorio('estoque', 'excel')" class="btn btn-success btn-sm">Excel</a>
+                            <a onclick="exportarRelatorio('estoque', 'word')" class="btn btn-info btn-sm">Word</a>
+                            <a onclick="exportarRelatorio('estoque', 'pdf')" class="btn btn-danger btn-sm">PDF</a>
+                        </div>
+                    </div>
+                </div>
+
+                <div class="col-md-4">
+                    <div class="card border">
+                        <div class="card-body">
+                            <h6>Coletas</h6>
+
+                            <a onclick="exportarRelatorio('coletas', 'excel')" class="btn btn-success btn-sm">Excel</a>
+                            <a onclick="exportarRelatorio('coletas', 'word')" class="btn btn-info btn-sm">Word</a>
+                            <a onclick="exportarRelatorio('coletas', 'pdf')" class="btn btn-danger btn-sm">PDF</a>
+                        </div>
+                    </div>
+                </div>
+
+            </div>
+
+        </form>
+
+    </div>
+</div>
+
+<script>
+    function exportarRelatorio(tipo, formato) {
+        const params = new URLSearchParams(window.location.search);
+
+        const dataInicio = document.querySelector('[name="data_inicio"]').value;
+        const dataFim = document.querySelector('[name="data_fim"]').value;
+        const doador = document.querySelector('[name="doador"]').value;
+        const campanha = document.querySelector('[name="campanha"]').value;
+        const produto = document.querySelector('[name="produto"]').value;
+
+        if (dataInicio) params.set('data_inicio', dataInicio);
+        if (dataFim) params.set('data_fim', dataFim);
+        if (doador) params.set('doador', doador);
+        if (campanha) params.set('campanha', campanha);
+        if (produto) params.set('produto', produto);
+
+        window.location.href = `/relatorio/${tipo}/${formato}/?${params.toString()}`;
+    }
+</script>
+
+{% endblock %}

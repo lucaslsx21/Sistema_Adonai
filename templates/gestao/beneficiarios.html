@@ -1,0 +1,65 @@
+{% extends 'base.html' %}
+
+{% block content %}
+
+<div class="d-flex justify-content-between mb-4">
+    <h2>Beneficiários</h2>
+    <a href="{% url 'criar_beneficiario' %}" class="btn btn-primary">Novo Beneficiário</a>
+</div>
+
+<div class="mb-3">
+    <a href="{% url 'exportar_excel' 'beneficiarios' %}" class="btn btn-success btn-sm">Excel</a>
+    <a href="{% url 'exportar_word' 'beneficiarios' %}" class="btn btn-info btn-sm">Word</a>
+    <a href="{% url 'exportar_pdf' 'beneficiarios' %}" class="btn btn-danger btn-sm">PDF</a>
+</div>
+
+<form method="get" class="mb-3">
+    <input type="text" name="busca" class="form-control" placeholder="Pesquisar beneficiário...">
+</form>
+
+<div class="card">
+    <div class="card-body">
+        <table class="table table-hover">
+            <thead>
+                <tr>
+                    <th>Nome</th>
+                    <th>Telefone</th>
+                    <th>Pessoas na família</th>
+                    <th>Ativo</th>
+                    <th>Ações</th>
+                </tr>
+            </thead>
+
+            <tbody>
+                {% for item in dados %}
+                <tr>
+                    <td>{{ item.nome }}</td>
+                    <td>{{ item.telefone }}</td>
+                    <td>{{ item.quantidade_pessoas }}</td>
+                    <td>
+                        {% if item.ativo %}
+                        <span class="badge bg-success">Sim</span>
+                        {% else %}
+                        <span class="badge bg-danger">Não</span>
+                        {% endif %}
+                    </td>
+                    <td>
+                        <a href="{% url 'editar_beneficiario' item.id %}" class="btn btn-warning btn-sm">Editar</a>
+
+                        <a href="{% url 'excluir_beneficiario' item.id %}" class="btn btn-danger btn-sm"
+                            onclick="return confirm('Deseja excluir?')">
+                            Excluir
+                        </a>
+                    </td>
+                </tr>
+                {% empty %}
+                <tr>
+                    <td colspan="5">Nenhum beneficiário encontrado.</td>
+                </tr>
+                {% endfor %}
+            </tbody>
+        </table>
+    </div>
+</div>
+
+{% endblock %}

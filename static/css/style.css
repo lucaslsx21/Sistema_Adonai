@@ -1,0 +1,40 @@
+body {
+  background-color: #f4f6f9;
+}
+
+.sidebar {
+  width: 250px;
+  min-height: 100vh;
+  background-color: #1f2937;
+  padding: 25px 20px;
+}
+
+.sidebar a {
+  display: block;
+  color: #d1d5db;
+  text-decoration: none;
+  padding: 10px 0;
+  font-size: 15px;
+}
+
+.sidebar a:hover {
+  color: #ffffff;
+}
+
+.content {
+  width: 100%;
+  padding: 30px;
+}
+
+.card-info {
+  border: none;
+  box-shadow: 0 4px 10px rgba(0, 0, 0, 0.08);
+}
+
+.card-info h6 {
+  color: #6b7280;
+}
+
+.card-info h2 {
+  font-weight: bold;
+}

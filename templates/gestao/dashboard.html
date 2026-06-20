@@ -1,0 +1,168 @@
+{% extends 'base.html' %}
+
+{% block content %}
+
+<h2 class="mb-4">Dashboard Geral</h2>
+
+<div class="row g-3 mb-4">
+
+    <div class="col-md-3">
+        <div class="card card-info">
+            <div class="card-body">
+                <h6>Doadores</h6>
+                <h2>{{ total_doadores }}</h2>
+            </div>
+        </div>
+    </div>
+
+    <div class="col-md-3">
+        <div class="card card-info">
+            <div class="card-body">
+                <h6>Produtos</h6>
+                <h2>{{ total_produtos }}</h2>
+            </div>
+        </div>
+    </div>
+
+    <div class="col-md-3">
+        <div class="card card-info">
+            <div class="card-body">
+                <h6>Doações</h6>
+                <h2>{{ total_doacoes }}</h2>
+            </div>
+        </div>
+    </div>
+
+    <div class="col-md-3">
+        <div class="card card-info">
+            <div class="card-body">
+                <h6>Beneficiários</h6>
+                <h2>{{ total_beneficiarios }}</h2>
+            </div>
+        </div>
+    </div>
+
+</div>
+
+<div class="row g-4 mb-4">
+
+    <div class="col-md-8">
+        <div class="card shadow-sm">
+            <div class="card-header">Doações por mês</div>
+            <div class="card-body">
+                <canvas id="graficoDoacoes"></canvas>
+            </div>
+        </div>
+    </div>
+
+    <div class="col-md-4">
+        <div class="card shadow-sm">
+            <div class="card-header">Campanhas com mais doações</div>
+            <div class="card-body">
+                <canvas id="graficoCampanhas"></canvas>
+            </div>
+        </div>
+    </div>
+
+</div>
+
+<div class="card mb-4">
+    <div class="card-header bg-danger text-white">
+        Produtos com estoque baixo
+    </div>
+
+    <div class="card-body">
+        <table class="table table-hover">
+            <thead>
+                <tr>
+                    <th>Produto</th>
+                    <th>Estoque atual</th>
+                    <th>Estoque mínimo</th>
+                </tr>
+            </thead>
+
+            <tbody>
+                {% for produto in produtos_baixo_estoque %}
+                <tr>
+                    <td>{{ produto.nome }}</td>
+                    <td>{{ produto.estoque_atual }}</td>
+                    <td>{{ produto.estoque_minimo }}</td>
+                </tr>
+                {% empty %}
+                <tr>
+                    <td colspan="3">Nenhum produto com estoque baixo.</td>
+                </tr>
+                {% endfor %}
+            </tbody>
+        </table>
+    </div>
+</div>
+
+<div class="card">
+    <div class="card-header">
+        Últimas Doações
+    </div>
+
+    <div class="card-body">
+        <table class="table table-hover">
+            <thead>
+                <tr>
+                    <th>Doador</th>
+                    <th>Campanha</th>
+                    <th>Data</th>
+                </tr>
+            </thead>
+
+            <tbody>
+                {% for doacao in ultimas_doacoes %}
+                <tr>
+                    <td>{{ doacao.doador.nome }}</td>
+                    <td>{{ doacao.campanha|default:"Sem campanha" }}</td>
+                    <td>{{ doacao.data_recebimento }}</td>
+                </tr>
+                {% empty %}
+                <tr>
+                    <td colspan="3">Nenhuma doação cadastrada.</td>
+                </tr>
+                {% endfor %}
+            </tbody>
+        </table>
+    </div>
+</div>
+
+<script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+
+<script>
+    const meses = JSON.parse('{{ grafico_meses|escapejs }}');
+    const doacoes = JSON.parse('{{ grafico_doacoes|escapejs }}');
+
+    new Chart(document.getElementById('graficoDoacoes'), {
+        type: 'line',
+        data: {
+            labels: meses,
+            datasets: [{
+                label: 'Doações',
+                data: doacoes,
+                borderWidth: 2,
+                tension: 0.3
+            }]
+        }
+    });
+
+    const campanhasLabels = JSON.parse('{{ grafico_campanhas_labels|escapejs }}');
+    const campanhasValores = JSON.parse('{{ grafico_campanhas_valores|escapejs }}');
+
+    new Chart(document.getElementById('graficoCampanhas'), {
+        type: 'bar',
+        data: {
+            labels: campanhasLabels,
+            datasets: [{
+                label: 'Doações',
+                data: campanhasValores,
+                borderWidth: 1
+            }]
+        }
+    });
+</script>
+
+{% endblock %}

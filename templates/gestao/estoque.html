@@ -1,0 +1,97 @@
+{% extends 'base.html' %}
+
+{% block content %}
+
+<div class="d-flex justify-content-between mb-4">
+    <h2>Estoque</h2>
+    <a href="{% url 'criar_movimentacao' %}" class="btn btn-primary">Nova Movimentação</a>
+</div>
+
+<div class="card mb-4">
+    <div class="card-header">Estoque Atual por Produto</div>
+
+    <div class="card-body">
+        <table class="table table-hover">
+            <thead>
+                <tr>
+                    <th>Produto</th>
+                    <th>Categoria</th>
+                    <th>Estoque Atual</th>
+                    <th>Estoque Mínimo</th>
+                    <th>Situação</th>
+                </tr>
+            </thead>
+
+            <tbody>
+                {% for produto in produtos %}
+                <tr>
+                    <td>{{ produto.nome }}</td>
+                    <td>{{ produto.categoria }}</td>
+                    <td>{{ produto.estoque_atual }}</td>
+                    <td>{{ produto.estoque_minimo }}</td>
+                    <td>
+                        {% if produto.estoque_atual <= produto.estoque_minimo %} <span class="badge bg-danger">
+                            Baixo</span>
+                            {% else %}
+                            <span class="badge bg-success">Normal</span>
+                            {% endif %}
+                    </td>
+                </tr>
+                {% empty %}
+                <tr>
+                    <td colspan="5">Nenhum produto cadastrado.</td>
+                </tr>
+                {% endfor %}
+            </tbody>
+        </table>
+    </div>
+</div>
+
+<div class="card">
+    <div class="card-header">Histórico de Movimentações</div>
+
+    <div class="card-body">
+        <table class="table table-hover">
+            <thead>
+                <tr>
+                    <th>Produto</th>
+                    <th>Tipo</th>
+                    <th>Quantidade</th>
+                    <th>Data</th>
+                    <th>Observação</th>
+                    <th>Ações</th>
+                </tr>
+            </thead>
+
+            <tbody>
+                {% for item in dados %}
+                <tr>
+                    <td>{{ item.produto }}</td>
+                    <td>
+                        {% if item.tipo == "ENTRADA" %}
+                        <span class="badge bg-success">Entrada</span>
+                        {% else %}
+                        <span class="badge bg-danger">Saída</span>
+                        {% endif %}
+                    </td>
+                    <td>{{ item.quantidade }}</td>
+                    <td>{{ item.data }}</td>
+                    <td>{{ item.observacao }}</td>
+                    <td>
+                        <a href="{% url 'excluir_movimentacao' item.id %}" class="btn btn-danger btn-sm"
+                            onclick="return confirm('Deseja excluir esta movimentação?')">
+                            Excluir
+                        </a>
+                    </td>
+                </tr>
+                {% empty %}
+                <tr>
+                    <td colspan="6">Nenhuma movimentação encontrada.</td>
+                </tr>
+                {% endfor %}
+            </tbody>
+        </table>
+    </div>
+</div>
+
+{% endblock %}
