@@ -1,14 +1,15 @@
 {
+  "version": 2,
   "builds": [
     {
-      "src": "projeto/wsgi.py",
+      "src": "sistema_adonai/wsgi.py",
       "use": "@vercel/python"
     }
   ],
   "routes": [
     {
       "src": "/(.*)",
-      "dest": "projeto/wsgi.py"
+      "dest": "sistema_adonai/wsgi.py"
     }
   ]
 }
