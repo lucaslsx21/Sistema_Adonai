@@ -1,3 +1,4 @@
+@"
 asgiref==3.11.1
 charset-normalizer==3.4.7
 dj-database-url==3.1.2
@@ -11,5 +12,8 @@ pillow==12.2.0
 psycopg2-binary==2.9.12
 python-docx==1.2.0
 reportlab==5.0.0
-sqlparse==0.5.4
-whitenoise
+sqlparse==0.5.5
+typing-extensions==4.15.0
+tzdata==2026.2
+whitenoise==6.12.0
+"@ | Set-Content -Encoding utf8 requirements.txt
