@@ -1,0 +1,45 @@
+{% extends 'base.html' %}
+
+{% block content %}
+
+<h2>Importar Documentos</h2>
+
+<form method="POST" enctype="multipart/form-data" class="card p-4 shadow-sm">
+    {% csrf_token %}
+
+    {{ form.as_p }}
+
+    <button type="submit" class="btn btn-primary">
+        Enviar Arquivo
+    </button>
+</form>
+
+<hr>
+
+<h3>Arquivos enviados</h3>
+
+<table class="table table-striped">
+    <tr>
+        <th>Título</th>
+        <th>Arquivo</th>
+        <th>Data</th>
+    </tr>
+
+    {% for doc in documentos %}
+    <tr>
+        <td>{{ doc.titulo }}</td>
+        <td>
+            <a href="{{ doc.arquivo.url }}" target="_blank" class="btn btn-sm btn-outline-success">
+                Visualizar
+            </a>
+        </td>
+        <td>{{ doc.criado_em|date:"d/m/Y H:i" }}</td>
+    </tr>
+    {% empty %}
+    <tr>
+        <td colspan="3">Nenhum arquivo enviado.</td>
+    </tr>
+    {% endfor %}
+</table>
+
+{% endblock %}

@@ -1,5 +1,17 @@
 from django import forms
-from .models import Doador, Produto, Campanha, Doacao, Beneficiario, Coleta, MovimentacaoEstoque, EntregaBeneficiario, CategoriaProduto
+
+from .models import (
+    Doador,
+    Produto,
+    Campanha,
+    Doacao,
+    Beneficiario,
+    Coleta,
+    MovimentacaoEstoque,
+    EntregaBeneficiario,
+    CategoriaProduto,
+    DocumentoImportado,
+)
 
 
 class BaseForm(forms.ModelForm):
@@ -19,11 +31,6 @@ class DoadorForm(BaseForm):
 
 
 class ProdutoForm(BaseForm):
-    class Meta:
-        model = Produto
-        fields = "__all__"
-
-class ProdutoForm(BaseForm):
     nova_categoria = forms.CharField(
         label="Categoria",
         max_length=100,
@@ -37,6 +44,12 @@ class ProdutoForm(BaseForm):
     class Meta:
         model = Produto
         fields = ["nome", "nova_categoria", "unidade", "estoque_minimo", "ativo"]
+
+    def __init__(self, *args, **kwargs):
+        super().__init__(*args, **kwargs)
+
+        if self.instance and self.instance.pk and self.instance.categoria:
+            self.fields["nova_categoria"].initial = self.instance.categoria.nome
 
     def save(self, commit=True):
         produto = super().save(commit=False)
@@ -80,17 +93,30 @@ class BeneficiarioForm(BaseForm):
     class Meta:
         model = Beneficiario
         fields = "__all__"
+        widgets = {
+            "endereco": forms.Textarea(attrs={"rows": 3}),
+            "observacoes": forms.Textarea(attrs={"rows": 3}),
+        }
 
 
 class ColetaForm(BaseForm):
     class Meta:
         model = Coleta
         fields = "__all__"
+        widgets = {
+            "data_agendada": forms.DateTimeInput(attrs={"type": "datetime-local"}),
+            "endereco_coleta": forms.Textarea(attrs={"rows": 3}),
+            "observacao": forms.Textarea(attrs={"rows": 3}),
+        }
+
 
 class MovimentacaoEstoqueForm(BaseForm):
     class Meta:
         model = MovimentacaoEstoque
         fields = ["produto", "tipo", "quantidade", "observacao"]
+        widgets = {
+            "observacao": forms.Textarea(attrs={"rows": 3}),
+        }
 
 
 class EntregaBeneficiarioForm(BaseForm):
@@ -103,18 +129,7 @@ class EntregaBeneficiarioForm(BaseForm):
         }
 
 
-class BeneficiarioForm(BaseForm):
+class DocumentoImportadoForm(BaseForm):
     class Meta:
-        model = Beneficiario
-        fields = "__all__"
-
-
-class ColetaForm(BaseForm):
-    class Meta:
-        model = Coleta
-        fields = "__all__"
-        widgets = {
-            "data_agendada": forms.DateTimeInput(attrs={"type": "datetime-local"}),
-            "endereco_coleta": forms.Textarea(attrs={"rows": 3}),
-            "observacao": forms.Textarea(attrs={"rows": 3}),
-        }
+        model = DocumentoImportado
+        fields = ["titulo", "tipo_importacao", "arquivo"]

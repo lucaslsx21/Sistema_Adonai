@@ -22,7 +22,7 @@ class Doador(models.Model):
 
 
 class CategoriaProduto(models.Model):
-    nome = models.CharField(max_length=100)
+    nome = models.CharField(max_length=100, unique=True)
 
     def __str__(self):
         return self.nome
@@ -43,7 +43,6 @@ class Produto(models.Model):
     estoque_minimo = models.DecimalField(max_digits=10, decimal_places=2, default=0)
     ativo = models.BooleanField(default=True)
 
-
     def estoque_atual(self):
         entradas = self.movimentacoes.filter(tipo="ENTRADA").aggregate(
             total=models.Sum("quantidade")
@@ -54,7 +53,7 @@ class Produto(models.Model):
         )["total"] or 0
 
         return entradas - saidas
-    
+
     def tem_estoque_suficiente(self, quantidade):
         return self.estoque_atual() >= quantidade
 
@@ -153,29 +152,73 @@ class Coleta(models.Model):
 
     def __str__(self):
         return f"Coleta - {self.doador.nome}"
-    
+
 
 class EntregaBeneficiario(models.Model):
     beneficiario = models.ForeignKey(
         Beneficiario,
         on_delete=models.PROTECT
     )
-
     produto = models.ForeignKey(
         Produto,
         on_delete=models.PROTECT
     )
-
     quantidade = models.DecimalField(
         max_digits=10,
         decimal_places=2
     )
-
     data_entrega = models.DateField()
-
     observacao = models.TextField(blank=True)
-
     criado_em = models.DateTimeField(auto_now_add=True)
 
     def __str__(self):
         return f"{self.beneficiario.nome} - {self.produto.nome}"
+
+
+class DocumentoImportado(models.Model):
+    TIPO_ARQUIVO_CHOICES = [
+        ("EXCEL", "Excel"),
+        ("WORD", "Word"),
+        ("PDF", "PDF"),
+        ("OUTRO", "Outro"),
+    ]
+
+    TIPO_IMPORTACAO_CHOICES = [
+        ("PRODUTOS", "Produtos"),
+        ("DOADORES", "Doadores"),
+        ("BENEFICIARIOS", "Beneficiários"),
+        ("DOACOES", "Doações"),
+        ("ESTOQUE", "Estoque"),
+        ("CAMPANHAS", "Campanhas"),
+    ]
+
+    titulo = models.CharField(max_length=150)
+    arquivo = models.FileField(upload_to="documentos_importados/")
+    tipo = models.CharField(
+        max_length=20,
+        choices=TIPO_ARQUIVO_CHOICES,
+        default="OUTRO"
+    )
+    tipo_importacao = models.CharField(
+        max_length=30,
+        choices=TIPO_IMPORTACAO_CHOICES,
+        default="PRODUTOS"
+    )
+    texto_extraido = models.TextField(blank=True, null=True)
+    importado_em = models.DateTimeField(auto_now_add=True)
+
+    def __str__(self):
+        return self.titulo
+
+
+class RegistroImportado(models.Model):
+    documento = models.ForeignKey(
+        DocumentoImportado,
+        on_delete=models.CASCADE,
+        related_name="registros"
+    )
+    conteudo = models.TextField()
+    criado_em = models.DateTimeField(auto_now_add=True)
+
+    def __str__(self):
+        return self.conteudo[:80]

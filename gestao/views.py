@@ -1,6 +1,12 @@
-from django.db.models import Count, Sum
+from django.db.models import Count
 from django.db.models.functions import TruncMonth
+from django.db import transaction
+
+from decimal import Decimal
+from datetime import datetime, date
 import json
+import openpyxl
+
 from django.shortcuts import render, redirect, get_object_or_404
 from django.contrib.auth.decorators import login_required
 from django.http import HttpResponse
@@ -9,10 +15,383 @@ from django.contrib import messages
 from openpyxl import Workbook
 from docx import Document
 from reportlab.pdfgen import canvas
+from PyPDF2 import PdfReader
 
-from .models import Doador, Produto, Campanha, Doacao, Beneficiario, Coleta, MovimentacaoEstoque, EntregaBeneficiario
-from .forms import DoadorForm, ProdutoForm, CampanhaForm, DoacaoForm, BeneficiarioForm, ColetaForm, MovimentacaoEstoqueForm, EntregaBeneficiarioForm
+from .models import (
+    CategoriaProduto,
+    Doador,
+    Produto,
+    Campanha,
+    Doacao,
+    Beneficiario,
+    Coleta,
+    MovimentacaoEstoque,
+    EntregaBeneficiario,
+    DocumentoImportado,
+    RegistroImportado,
+)
 
+from .forms import (
+    DoadorForm,
+    DocumentoImportadoForm,
+    ProdutoForm,
+    CampanhaForm,
+    DoacaoForm,
+    BeneficiarioForm,
+    ColetaForm,
+    MovimentacaoEstoqueForm,
+    EntregaBeneficiarioForm,
+)
+
+
+# =========================
+# FUNÇÕES AUXILIARES
+# =========================
+
+def normalizar_texto(valor):
+    if valor is None:
+        return ""
+    return str(valor).strip()
+
+
+def normalizar_cabecalho(valor):
+    return (
+        normalizar_texto(valor)
+        .lower()
+        .replace(" ", "_")
+        .replace("ç", "c")
+        .replace("ã", "a")
+        .replace("á", "a")
+        .replace("à", "a")
+        .replace("â", "a")
+        .replace("é", "e")
+        .replace("ê", "e")
+        .replace("í", "i")
+        .replace("ó", "o")
+        .replace("ô", "o")
+        .replace("õ", "o")
+        .replace("ú", "u")
+    )
+
+
+def montar_linha_dict(cabecalhos, linha):
+    dados = {}
+    for indice, cabecalho in enumerate(cabecalhos):
+        if cabecalho:
+            dados[cabecalho] = linha[indice] if indice < len(linha) else None
+    return dados
+
+
+def valor_decimal(valor, padrao=0):
+    try:
+        if valor in [None, ""]:
+            return Decimal(padrao)
+        return Decimal(str(valor).replace(",", "."))
+    except Exception:
+        return Decimal(padrao)
+
+
+def valor_int(valor, padrao=0):
+    try:
+        if valor in [None, ""]:
+            return padrao
+        return int(float(valor))
+    except Exception:
+        return padrao
+
+
+def valor_bool(valor):
+    texto = normalizar_texto(valor).lower()
+    return texto in ["sim", "s", "ativo", "true", "1", "yes"]
+
+
+def valor_data(valor):
+    if not valor:
+        return None
+
+    if isinstance(valor, datetime):
+        return valor.date()
+
+    if isinstance(valor, date):
+        return valor
+
+    texto = normalizar_texto(valor)
+
+    for formato in ["%d/%m/%Y", "%Y-%m-%d"]:
+        try:
+            return datetime.strptime(texto, formato).date()
+        except Exception:
+            pass
+
+    return None
+
+
+def abrir_excel_com_dados(caminho):
+    workbook = openpyxl.load_workbook(caminho, data_only=True)
+    sheet = workbook.active
+
+    linhas = list(sheet.iter_rows(values_only=True))
+
+    if not linhas:
+        return []
+
+    cabecalhos = [normalizar_cabecalho(celula) for celula in linhas[0]]
+    dados = []
+
+    for linha in linhas[1:]:
+        if not any(linha):
+            continue
+        dados.append(montar_linha_dict(cabecalhos, linha))
+
+    return dados
+
+
+# =========================
+# IMPORTAÇÃO EXCEL
+# =========================
+
+def importar_produtos_excel(caminho):
+    linhas = abrir_excel_com_dados(caminho)
+    total = 0
+
+    with transaction.atomic():
+        for item in linhas:
+            nome = normalizar_texto(
+                item.get("nome") or item.get("produto") or item.get("descricao")
+            )
+
+            if not nome:
+                continue
+
+            categoria_nome = normalizar_texto(item.get("categoria") or "Sem categoria")
+            unidade = normalizar_texto(item.get("unidade") or "UN").upper()
+            estoque_minimo = valor_decimal(item.get("estoque_minimo") or item.get("minimo"), 0)
+            quantidade = valor_decimal(item.get("quantidade") or item.get("estoque") or item.get("qtd"), 0)
+
+            categoria, _ = CategoriaProduto.objects.get_or_create(nome=categoria_nome)
+
+            produto, criado = Produto.objects.get_or_create(
+                nome=nome,
+                defaults={
+                    "categoria": categoria,
+                    "unidade": unidade,
+                    "estoque_minimo": estoque_minimo,
+                }
+            )
+
+            if not criado:
+                produto.categoria = categoria
+                produto.unidade = unidade
+                produto.estoque_minimo = estoque_minimo
+                produto.save()
+
+            if quantidade > 0:
+                MovimentacaoEstoque.objects.create(
+                    produto=produto,
+                    tipo="ENTRADA",
+                    quantidade=quantidade,
+                    observacao="Entrada automática por importação de documento."
+                )
+
+            total += 1
+
+    return total
+
+
+def importar_doadores_excel(caminho):
+    linhas = abrir_excel_com_dados(caminho)
+    total = 0
+
+    with transaction.atomic():
+        for item in linhas:
+            nome = normalizar_texto(item.get("nome") or item.get("doador"))
+
+            if not nome:
+                continue
+
+            tipo = normalizar_texto(item.get("tipo") or "PF").upper()
+
+            if tipo not in ["PF", "PJ"]:
+                tipo = "PF"
+
+            Doador.objects.update_or_create(
+                nome=nome,
+                defaults={
+                    "tipo": tipo,
+                    "telefone": normalizar_texto(item.get("telefone")),
+                    "email": normalizar_texto(item.get("email")),
+                    "cidade": normalizar_texto(item.get("cidade")),
+                    "endereco": normalizar_texto(item.get("endereco")),
+                    "ativo": valor_bool(item.get("ativo") or "sim"),
+                }
+            )
+
+            total += 1
+
+    return total
+
+
+def importar_beneficiarios_excel(caminho):
+    linhas = abrir_excel_com_dados(caminho)
+    total = 0
+
+    with transaction.atomic():
+        for item in linhas:
+            nome = normalizar_texto(item.get("nome") or item.get("beneficiario"))
+
+            if not nome:
+                continue
+
+            Beneficiario.objects.update_or_create(
+                nome=nome,
+                defaults={
+                    "cpf": normalizar_texto(item.get("cpf")),
+                    "telefone": normalizar_texto(item.get("telefone")),
+                    "endereco": normalizar_texto(item.get("endereco")),
+                    "quantidade_pessoas": valor_int(
+                        item.get("quantidade_pessoas") or item.get("pessoas"),
+                        1
+                    ),
+                    "observacoes": normalizar_texto(
+                        item.get("observacoes") or item.get("observacao")
+                    ),
+                    "ativo": valor_bool(item.get("ativo") or "sim"),
+                }
+            )
+
+            total += 1
+
+    return total
+
+
+def importar_campanhas_excel(caminho):
+    linhas = abrir_excel_com_dados(caminho)
+    total = 0
+
+    with transaction.atomic():
+        for item in linhas:
+            nome = normalizar_texto(item.get("nome") or item.get("campanha"))
+
+            if not nome:
+                continue
+
+            Campanha.objects.update_or_create(
+                nome=nome,
+                defaults={
+                    "descricao": normalizar_texto(item.get("descricao")),
+                    "data_inicio": valor_data(item.get("data_inicio") or item.get("inicio")) or date.today(),
+                    "data_fim": valor_data(item.get("data_fim") or item.get("fim")) or date.today(),
+                    "ativa": valor_bool(item.get("ativa") or "sim"),
+                }
+            )
+
+            total += 1
+
+    return total
+
+
+def importar_estoque_excel(caminho):
+    linhas = abrir_excel_com_dados(caminho)
+    total = 0
+
+    with transaction.atomic():
+        for item in linhas:
+            produto_nome = normalizar_texto(item.get("produto") or item.get("nome"))
+
+            if not produto_nome:
+                continue
+
+            produto = Produto.objects.filter(nome__iexact=produto_nome).first()
+
+            if not produto:
+                categoria, _ = CategoriaProduto.objects.get_or_create(nome="Sem categoria")
+
+                produto = Produto.objects.create(
+                    nome=produto_nome,
+                    categoria=categoria,
+                    unidade="UN",
+                    estoque_minimo=0,
+                )
+
+            tipo = normalizar_texto(item.get("tipo") or "ENTRADA").upper()
+
+            if tipo not in ["ENTRADA", "SAIDA"]:
+                tipo = "ENTRADA"
+
+            quantidade = valor_decimal(item.get("quantidade") or item.get("qtd"), 0)
+
+            if quantidade <= 0:
+                continue
+
+            MovimentacaoEstoque.objects.create(
+                produto=produto,
+                tipo=tipo,
+                quantidade=quantidade,
+                observacao=normalizar_texto(
+                    item.get("observacao") or "Movimentação automática por importação."
+                )
+            )
+
+            total += 1
+
+    return total
+
+
+def importar_doacoes_excel(caminho, usuario):
+    linhas = abrir_excel_com_dados(caminho)
+    total = 0
+
+    with transaction.atomic():
+        for item in linhas:
+            nome_doador = normalizar_texto(item.get("doador") or item.get("nome_doador"))
+            nome_campanha = normalizar_texto(item.get("campanha"))
+            data_recebimento = valor_data(
+                item.get("data_recebimento") or item.get("data")
+            ) or date.today()
+
+            if not nome_doador:
+                continue
+
+            doador, _ = Doador.objects.get_or_create(
+                nome=nome_doador,
+                defaults={
+                    "tipo": "PF",
+                    "telefone": normalizar_texto(item.get("telefone")),
+                    "email": normalizar_texto(item.get("email")),
+                    "cidade": normalizar_texto(item.get("cidade")),
+                    "endereco": normalizar_texto(item.get("endereco")),
+                }
+            )
+
+            campanha = None
+
+            if nome_campanha:
+                campanha, _ = Campanha.objects.get_or_create(
+                    nome=nome_campanha,
+                    defaults={
+                        "descricao": "",
+                        "data_inicio": data_recebimento,
+                        "data_fim": data_recebimento,
+                        "ativa": True,
+                    }
+                )
+
+            Doacao.objects.create(
+                doador=doador,
+                campanha=campanha,
+                data_recebimento=data_recebimento,
+                observacao=normalizar_texto(item.get("observacao")),
+                criado_por=usuario,
+            )
+
+            total += 1
+
+    return total
+
+
+# =========================
+# DASHBOARD
+# =========================
 
 @login_required
 def dashboard(request):
@@ -45,19 +424,15 @@ def dashboard(request):
         "total_beneficiarios": Beneficiario.objects.count(),
         "produtos_baixo_estoque": produtos_baixo_estoque,
         "ultimas_doacoes": Doacao.objects.order_by("-criado_em")[:5],
-
         "grafico_meses": json.dumps([
             item["mes"].strftime("%m/%Y") for item in doacoes_por_mes
         ]),
-
         "grafico_doacoes": json.dumps([
             item["total"] for item in doacoes_por_mes
         ]),
-
         "grafico_campanhas_labels": json.dumps([
             item.nome for item in campanhas
         ]),
-
         "grafico_campanhas_valores": json.dumps([
             item.total_doacoes for item in campanhas
         ]),
@@ -346,6 +721,7 @@ def get_model_data(tipo, request=None):
 
     return [], []
 
+
 def linha_objeto(tipo, obj):
     if tipo == "doadores":
         return [
@@ -379,6 +755,7 @@ def linha_objeto(tipo, obj):
             obj.data_recebimento,
             obj.observacao,
         ]
+
     if tipo == "beneficiarios":
         return [
             obj.nome,
@@ -402,6 +779,8 @@ def linha_objeto(tipo, obj):
             obj.quantidade,
             obj.data,
         ]
+
+    return []
 
 
 @login_required
@@ -498,6 +877,11 @@ def exportar_pdf(request, tipo):
     p.save()
     return response
 
+
+# =========================
+# ESTOQUE
+# =========================
+
 @login_required
 def estoque(request):
     dados = MovimentacaoEstoque.objects.all().order_by("-data")
@@ -536,6 +920,7 @@ def criar_movimentacao(request):
         "titulo": "Nova Movimentação de Estoque"
     })
 
+
 @login_required
 def excluir_movimentacao(request, pk):
     item = get_object_or_404(MovimentacaoEstoque, pk=pk)
@@ -543,6 +928,10 @@ def excluir_movimentacao(request, pk):
     messages.success(request, "Movimentação excluída com sucesso.")
     return redirect("estoque")
 
+
+# =========================
+# BENEFICIÁRIOS
+# =========================
 
 @login_required
 def beneficiarios(request):
@@ -595,6 +984,10 @@ def excluir_beneficiario(request, pk):
     return redirect("beneficiarios")
 
 
+# =========================
+# COLETAS
+# =========================
+
 @login_required
 def coletas(request):
     dados = Coleta.objects.all().order_by("-data_agendada")
@@ -639,6 +1032,10 @@ def excluir_coleta(request, pk):
     messages.success(request, "Coleta excluída com sucesso.")
     return redirect("coletas")
 
+
+# =========================
+# ENTREGAS
+# =========================
 
 @login_required
 def entregas(request):
@@ -689,6 +1086,10 @@ def excluir_entrega(request, pk):
     return redirect("entregas")
 
 
+# =========================
+# RELATÓRIOS
+# =========================
+
 @login_required
 def relatorios(request):
     context = {
@@ -698,3 +1099,151 @@ def relatorios(request):
     }
 
     return render(request, "gestao/relatorios.html", context)
+
+
+# =========================
+# DOCUMENTOS / IMPORTAÇÃO
+# =========================
+
+def extrair_texto_excel(caminho):
+    workbook = openpyxl.load_workbook(caminho, data_only=True)
+    texto = []
+
+    for aba in workbook.sheetnames:
+        sheet = workbook[aba]
+        texto.append(f"Aba: {aba}")
+
+        for linha in sheet.iter_rows(values_only=True):
+            valores = [str(celula) for celula in linha if celula is not None]
+
+            if valores:
+                texto.append(" | ".join(valores))
+
+    return "\n".join(texto)
+
+
+def extrair_texto_word(caminho):
+    documento = Document(caminho)
+    texto = []
+
+    for paragrafo in documento.paragraphs:
+        if paragrafo.text.strip():
+            texto.append(paragrafo.text.strip())
+
+    return "\n".join(texto)
+
+
+def extrair_texto_pdf(caminho):
+    reader = PdfReader(caminho)
+    texto = []
+
+    for pagina in reader.pages:
+        conteudo = pagina.extract_text()
+
+        if conteudo:
+            texto.append(conteudo)
+
+    return "\n".join(texto)
+
+
+@login_required
+def documentos(request):
+    documentos = DocumentoImportado.objects.all().order_by("-importado_em")
+
+    return render(request, "gestao/documentos.html", {
+        "documentos": documentos
+    })
+
+
+@login_required
+def importar_documentos(request):
+    if request.method == "POST":
+        form = DocumentoImportadoForm(request.POST, request.FILES)
+
+        if form.is_valid():
+            documento = form.save(commit=False)
+
+            nome_arquivo = documento.arquivo.name.lower()
+
+            if nome_arquivo.endswith(".xlsx"):
+                documento.tipo = "EXCEL"
+            elif nome_arquivo.endswith(".docx"):
+                documento.tipo = "WORD"
+            elif nome_arquivo.endswith(".pdf"):
+                documento.tipo = "PDF"
+            else:
+                documento.tipo = "OUTRO"
+
+            documento.save()
+            caminho = documento.arquivo.path
+
+            try:
+                total_importado = 0
+
+                if documento.tipo == "EXCEL":
+                    texto = extrair_texto_excel(caminho)
+
+                    if documento.tipo_importacao == "PRODUTOS":
+                        total_importado = importar_produtos_excel(caminho)
+
+                    elif documento.tipo_importacao == "DOADORES":
+                        total_importado = importar_doadores_excel(caminho)
+
+                    elif documento.tipo_importacao == "BENEFICIARIOS":
+                        total_importado = importar_beneficiarios_excel(caminho)
+
+                    elif documento.tipo_importacao == "CAMPANHAS":
+                        total_importado = importar_campanhas_excel(caminho)
+
+                    elif documento.tipo_importacao == "ESTOQUE":
+                        total_importado = importar_estoque_excel(caminho)
+
+                    elif documento.tipo_importacao == "DOACOES":
+                        total_importado = importar_doacoes_excel(caminho, request.user)
+
+                elif documento.tipo == "WORD":
+                    texto = extrair_texto_word(caminho)
+
+                elif documento.tipo == "PDF":
+                    texto = extrair_texto_pdf(caminho)
+
+                else:
+                    texto = ""
+
+                documento.texto_extraido = texto
+                documento.save()
+
+                RegistroImportado.objects.filter(documento=documento).delete()
+
+                for linha in texto.splitlines():
+                    if linha.strip():
+                        RegistroImportado.objects.create(
+                            documento=documento,
+                            conteudo=linha.strip()
+                        )
+
+                if documento.tipo == "EXCEL":
+                    messages.success(
+                        request,
+                        f"Documento importado com sucesso. {total_importado} registro(s) alimentaram o sistema."
+                    )
+                else:
+                    messages.success(
+                        request,
+                        "Documento anexado e texto extraído. Para alimentar cadastros automaticamente, use planilha Excel."
+                    )
+
+                return redirect("importar_documentos")
+
+            except Exception as erro:
+                messages.error(request, f"Erro ao processar documento: {erro}")
+
+    else:
+        form = DocumentoImportadoForm()
+
+    documentos = DocumentoImportado.objects.all().order_by("-importado_em")
+
+    return render(request, "gestao/importar_documentos.html", {
+        "form": form,
+        "documentos": documentos
+    })
