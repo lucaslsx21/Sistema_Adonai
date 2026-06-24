@@ -25,8 +25,11 @@ SECRET_KEY = 'django-insecure-0lmls4yy!l3#_3*vbnuw(ryeb!6=ikf+oum^r6w&dadn2glny!
 # SECURITY WARNING: don't run with debug turned on in production!
 DEBUG = True
 
-ALLOWED_HOSTS = ['*',]
+ALLOWED_HOSTS = ['sistema-adonai.onrender.com', 'localhost', '127.0.0.1']
 
+CSRF_TRUSTED_ORIGINS = [
+    "https://sistema-adonai.onrender.com",
+]
 
 # Application definition
 
